@@ -30,3 +30,29 @@ export function tallyVoteSettlement(input: { totalBettors: number; votes: VoteRe
   }
   return { status: "pending" };
 }
+
+export type BetStatus = "open" | "locked" | "voting" | "settled" | "voided" | "ready_to_settle";
+
+export function nextStatusAfterDeadlines(input: {
+  currentStatus: "open" | "locked" | "voting" | "settled" | "voided";
+  betType: "yes_no" | "multi_choice" | "over_under" | "prop" | "gif_challenge";
+  deadline: string;
+  votingDeadline: string | null;
+  now: string;
+}): BetStatus {
+  const { currentStatus, betType, deadline, votingDeadline, now } = input;
+  if (currentStatus === "settled" || currentStatus === "voided") return currentStatus;
+  const nowMs = Date.parse(now);
+  const deadlineMs = Date.parse(deadline);
+
+  if (betType === "gif_challenge") {
+    if (currentStatus === "open" && nowMs >= deadlineMs) return "voting";
+    if (currentStatus === "voting" && votingDeadline && nowMs >= Date.parse(votingDeadline)) {
+      return "ready_to_settle";
+    }
+    return currentStatus;
+  }
+
+  if (currentStatus === "open" && nowMs >= deadlineMs) return "locked";
+  return currentStatus;
+}
