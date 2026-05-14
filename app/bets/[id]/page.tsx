@@ -1,12 +1,15 @@
 import { notFound } from "next/navigation";
+import type { ReactNode } from "react";
 import { db } from "@/db";
-import { bets, outcomes, wagers, users } from "@/db/schema";
+import { bets, outcomes, wagers, users, settlementVotes } from "@/db/schema";
 import { eq, inArray } from "drizzle-orm";
-import { getCurrentUser } from "@/lib/auth";
+import { getCurrentUser, isAdmin } from "@/lib/auth";
 import { reconcileBetStatus } from "@/lib/sweeps";
 import { OddsDisplay } from "@/components/OddsDisplay";
 import { PlaceWagerForm } from "./PlaceWagerForm";
 import { PropWagerForm } from "./PropWagerForm";
+import { CreatorSettleForm } from "./CreatorSettleForm";
+import { VoteSettleForm } from "./VoteSettleForm";
 import { formatPoints, formatDeadlineCountdown } from "@/lib/format";
 import { LiveBadge, BoostBadge, VoidStamp, SettledBadge } from "@/components/BetBadges";
 import { BetDetailClient } from "./BetDetailClient";
@@ -36,6 +39,85 @@ export default async function BetDetailPage({ params }: { params: Promise<{ id: 
   const stakeByOutcome = new Map<number, number>();
   for (const w of allWagers) {
     if (w.outcomeId !== null) stakeByOutcome.set(w.outcomeId, (stakeByOutcome.get(w.outcomeId) ?? 0) + w.stake);
+  }
+
+  let creatorView: ReactNode = null;
+  let voteView: ReactNode = null;
+  if (bet.status === "locked" && bet.betType !== "gif_challenge") {
+    if (bet.settlementMode === "creator") {
+      const propGroups = bet.betType === "prop"
+        ? Object.values(
+            allWagers.reduce<Record<string, { answer: string; bettors: { name: string; stake: number }[] }>>((acc, w) => {
+              const ans = (w.propAnswer ?? "").trim();
+              const key = ans.toLowerCase();
+              if (!acc[key]) acc[key] = { answer: ans, bettors: [] };
+              acc[key].bettors.push({ name: usersById.get(w.userId)?.name ?? "?", stake: w.stake });
+              return acc;
+            }, {}),
+          )
+        : [];
+      if (me && (me.id === bet.creatorId || isAdmin(me))) {
+        creatorView = <CreatorSettleForm betId={bet.id} betType={bet.betType} outcomes={ocs} propGroups={propGroups} />;
+      } else {
+        creatorView = (
+          <p className="rounded-md border border-border bg-bg-surface px-4 py-3 text-sm text-text-muted">
+            Waiting on <span className="text-text">{usersById.get(bet.creatorId)?.name}</span> to settle this bet.
+          </p>
+        );
+      }
+    } else if (bet.settlementMode === "vote") {
+      const votes = db.select().from(settlementVotes).where(eq(settlementVotes.betId, bet.id)).all();
+      const totalBettors = allWagers.length;
+      const tallyMap = new Map<string, { label: string; count: number }>();
+      for (const v of votes) {
+        let key: string;
+        let label: string;
+        if (v.isVoidVote === 1) {
+          key = "void";
+          label = "VOID";
+        } else if (bet.betType === "prop") {
+          const ans = (v.propAnswer ?? "").trim();
+          key = `prop:${ans.toLowerCase()}`;
+          label = ans;
+        } else {
+          key = `oc:${v.outcomeId}`;
+          label = ocs.find((o) => o.id === v.outcomeId)?.label ?? "?";
+        }
+        const cur = tallyMap.get(key) ?? { label, count: 0 };
+        cur.count += 1;
+        tallyMap.set(key, cur);
+      }
+      const tally = Array.from(tallyMap.entries()).map(([key, v]) => ({ key, label: v.label, count: v.count }));
+      const hasVoted = !!votes.find((v) => v.voterUserId === me?.id);
+      const propAnswers = bet.betType === "prop"
+        ? Array.from(new Set(allWagers.map((w) => (w.propAnswer ?? "").trim()).filter(Boolean)))
+        : [];
+      if (me && allWagers.some((w) => w.userId === me.id)) {
+        voteView = (
+          <VoteSettleForm
+            betId={bet.id}
+            betType={bet.betType}
+            outcomes={ocs}
+            propAnswers={propAnswers}
+            hasVoted={hasVoted}
+            tally={tally}
+            totalBettors={totalBettors}
+          />
+        );
+      } else {
+        voteView = (
+          <div className="rounded-md border border-border bg-bg-surface p-4 text-sm">
+            <h3 className="mb-2 font-display text-display-md uppercase text-info">Vote tally</h3>
+            {tally.map((t) => (
+              <div key={t.key} className="flex justify-between">
+                <span>{t.label}</span>
+                <span className="tabular">{t.count} / {totalBettors}</span>
+              </div>
+            ))}
+          </div>
+        );
+      }
+    }
   }
 
   return (
@@ -118,6 +200,8 @@ export default async function BetDetailPage({ params }: { params: Promise<{ id: 
           </ul>
         </section>
       )}
+
+      {(creatorView || voteView) && <section className="mt-6 space-y-4">{creatorView}{voteView}</section>}
     </main>
   );
 }
