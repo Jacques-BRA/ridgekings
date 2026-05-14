@@ -109,7 +109,9 @@ Always settle by vote (see Section 5).
 
 ### Admin override
 
-The admin user sees a "Force settle / void" button on any locked or settled bet. Reverses any prior settlement (refunds prior payouts via inverted ledger entries) then re-runs. Logged as `admin_adjust`. The ledger is append-only — past entries are never rewritten.
+The admin user sees:
+- A **"Force settle / void"** button on any locked or settled bet. Reverses any prior settlement (refunds prior payouts via inverted ledger entries) then re-runs. Logged as `admin_adjust`. The ledger is append-only — past entries are never rewritten.
+- A **"BOOST / pin"** toggle on any bet. Pinned bets surface to the top of the board and render a "BOOST" badge (see Section 13.5). Adds a `is_boosted` boolean column to `bets`. Purely cosmetic — does not change pool math.
 
 ### No deadline extensions
 
@@ -143,6 +145,7 @@ SQLite. Drizzle ORM for schema + queries. All timestamps stored as ISO-8601 stri
 | `winning_outcome_id` | INTEGER FK → outcomes.id | Nullable |
 | `winning_prop_answer` | TEXT | Nullable; for prop bets |
 | `winning_submission_id` | INTEGER FK → submissions.id | Nullable; GIF challenges |
+| `is_boosted` | INTEGER | 0/1; admin-pinned for "BOOST" badge + top-of-board placement |
 | `created_at` | TEXT | |
 | `settled_at` | TEXT | Nullable |
 
@@ -312,3 +315,128 @@ instrumentation.ts    # boots the scheduler
 - Mid-bet schema migrations (pre-launch we wipe the DB).
 - Editing/canceling wagers after placement.
 - Deadline extensions.
+
+## 13. Style Guide — "RidgeKings"
+
+A parody of DraftKings' visual language. Neon-on-black sportsbook chrome, loud marketing voice, faux-compliance disclaimers everywhere. **Dark mode only** — there is no light theme.
+
+### 13.1 Brand
+
+- **Product name:** RidgeKings
+- **Tagline:** *"The Office Sportsbook™ — Where Productivity Goes To Die"*
+- **Mascot/motif:** A stylized crown (King motif). Used in the logo, as a "🤴" stand-in on the leaderboard top three, and as a watermark behind hero sections.
+- **Logo lockup:** Crown glyph + `RIDGEKINGS` wordmark in an ultra-condensed black sans, neon-green crown, white wordmark.
+
+### 13.2 Color Palette
+
+| Token | Hex | Role |
+|---|---|---|
+| `--bg-base` | `#0A0F0A` | App background (near-black with a faint green tint) |
+| `--bg-surface` | `#121712` | Cards, panels |
+| `--bg-elevated` | `#1A211A` | Modals, dropdowns, hovered cards |
+| `--border` | `#1F2A1F` | Hairlines, card borders |
+| `--border-strong` | `#2A3A2A` | Input borders, dividers |
+| `--text` | `#FFFFFF` | Primary text |
+| `--text-muted` | `#A8B3A8` | Secondary text, captions |
+| `--text-dim` | `#6B776B` | Tertiary, disclaimers, legal copy |
+| `--primary` | `#53FC1A` | Primary CTA, "WIN", live odds positive |
+| `--primary-hover` | `#3FCC14` | CTA hover |
+| `--primary-press` | `#2FA80F` | CTA pressed |
+| `--danger` | `#FF3B30` | "LOSS", negative deltas, void markers |
+| `--gold` | `#FFD700` | Crowns, jackpots, leaderboard top 3 |
+| `--live` | `#FF5C29` | "LIVE" pulse badge |
+| `--info` | `#00C2FF` | "BOOST" badges (electric cyan for the highlight contrast) |
+
+All colors declared as CSS custom properties on `:root` for easy adjustment.
+
+### 13.3 Typography
+
+- **Display face** (headlines, big numbers, odds): **Geist Display** (or **Inter Display** as fallback), weight `900` (Black), `letter-spacing: -0.02em`. ALL-CAPS for everything that isn't a body paragraph.
+- **Body face:** **Inter**, weights `400` / `500` / `600`.
+- **Monospace** (ledger, transaction IDs, technical chrome): **JetBrains Mono**, weight `500`.
+- **Numerics:** Every numeric (odds, payouts, balances, pool sizes) uses `font-variant-numeric: tabular-nums` so digits don't jitter when they tick.
+
+Type scale (Tailwind-style):
+
+| Class | Size / Line-height | Use |
+|---|---|---|
+| `display-2xl` | 64 / 64 | Hero "JACKPOT" moments |
+| `display-xl` | 48 / 52 | Page titles |
+| `display-lg` | 32 / 36 | Card headlines, bet titles |
+| `display-md` | 24 / 28 | Section headers |
+| `body-lg` | 18 / 28 | Lead paragraphs |
+| `body-md` | 14 / 20 | Default body |
+| `body-sm` | 12 / 16 | Captions, metadata |
+| `mono-sm` | 12 / 16 | Ledger entries, IDs |
+
+### 13.4 Iconography
+
+- **Lucide React** for general icons (chevrons, close, plus, etc.).
+- Custom SVG only for: crown logo glyph, "LIVE" dot, "BOOST" lightning bolt, void/cancel "VOID" stamp.
+- Icons inherit currentColor.
+
+### 13.5 Sportsbook Chrome (the spoof core)
+
+These elements appear throughout the UI and are the heart of the parody:
+
+- **American odds rendering.** For non-GIF bets while open, each outcome shows a derived American-odds display next to the implied payout. Formula: derive implied probability `p = stake_on_outcome / total_pool`. If `p >= 0.5`, render `-X` where `X = round(p / (1 - p) * 100)`. If `p < 0.5`, render `+X` where `X = round((1 - p) / p * 100)`. New / no-stake outcomes show `+∞` and "BE THE FIRST" copy. Display in `display-lg` weight, primary green for `+` (underdog), white for `-` (favorite). Pure visual flavor — actual payouts use the parimutuel formula in Section 4.
+- **"LIVE" badge.** Pulsing dot (`--live` orange) + uppercase "LIVE" on any bet currently `open`. CSS keyframe: 1s ease-in-out, 0.6→1.0 opacity loop.
+- **"BOOST" badge.** Cyan lightning-bolt chip with the label "BOOST" on any bet the admin pins (Section 6 admin powers extends to a "feature this bet" toggle). Position: top-right corner of the card.
+- **"PARLAY" copy** lives on the user dropdown menu as a fake disabled item: *"Build a Parlay (Premium)"*. Click does nothing but show a toast: "Premium feature coming Q5 2027."
+- **Cash counter** in the top bar. The balance number animates with a slot-machine-style roll on stipend day and after every win/loss. Implement via `react-countup` or a small custom hook with `requestAnimationFrame`.
+- **Confetti** on the bet detail page when a settlement credits you `winnings > 0`. Use `canvas-confetti` with neon-green + gold + white. One burst, no looping.
+- **"VOID" stamp.** When a bet voids, a diagonal red "VOID" stamp (CSS `transform: rotate(-12deg)`) overlays the bet card.
+
+### 13.6 Components
+
+- **Buttons.** Three variants:
+  - **Primary CTA:** `bg-primary text-black font-black uppercase tracking-wide`, big rounded-md corners, subtle drop-shadow with primary glow. Labels are loud verbs: `PLACE BET`, `LOCK IT IN`, `CASH OUT` (only for void refunds, ha), `BOOST`, `SUBMIT GIF`.
+  - **Secondary:** `bg-bg-elevated text-white border border-border-strong`. Labels: `Cancel`, `Back`.
+  - **Ghost:** Text-only with primary underline on hover.
+- **Cards.** `bg-bg-surface` + 1px `--border`. Hover: lifts to `--bg-elevated`. 12px corner radius. Header row: title (display-lg) on left, badges (LIVE / BOOST / VOID) on right.
+- **Inputs.** Dark fill (`--bg-surface`), 1px `--border-strong`, focus ring in `--primary` at 40% opacity. Labels above input, ALL-CAPS body-sm, muted color.
+- **Tabs** (bet board): underline-style. Active tab uses `--primary` underline + white text; inactive uses muted text + transparent underline.
+- **Toasts.** Bottom-right. Dark surface, neon-green left border on success, red on error, gold on stipend/jackpot. Auto-dismiss 4s.
+- **Tables** (leaderboard, ledger): zebra striping with `--bg-base` / `--bg-surface`. Top 3 leaderboard rows get a gold crown glyph in the rank column.
+
+### 13.7 Voice & Copy
+
+Loud. Capitalized. Mock-corporate. Take every excuse to talk like a TV sportsbook ad.
+
+Examples:
+
+- **Empty bet board:** *"NO ACTION RIGHT NOW. BE THE FIRST TO POST A LINE."*
+- **Place-bet CTA:** `LOCK IT IN`
+- **Settled-bet banner (you won):** *"WINNER WINNER. You took home **+X** points."*
+- **Settled-bet banner (you lost):** *"TOUGH BREAK. The book takes another one."*
+- **Void banner:** *"BET VOIDED. Stakes refunded. Move along."*
+- **Stipend toast (Mondays):** *"WEEKLY DEPOSIT MATCH! +200 RKD credited to your account."*
+- **Footer disclaimer (every page):**
+  > *Gamble responsibly. Must be 18+ and employed at this office. If you or someone you know has an office gambling problem, please contact HR. Bets are settled at the sole discretion of the bet creator, the bettors, the admin, or whichever of them yells loudest. RidgeKings is not a real sportsbook and "RKD" is not a real currency. Probably. Terms apply, but we didn't write any.*
+- **Fake "responsible gaming" link in footer:** routes to `/responsible-gaming` which is a single page that just says *"Lol. Get back to work."*
+
+### 13.8 Motion & Interaction
+
+- All transitions: 150ms ease-out by default. 250ms for modals/sheets.
+- Balance counter: ~600ms roll animation on change.
+- "LIVE" pulse: 1s loop, infinite, ease-in-out.
+- Confetti burst on win: 0.8s duration, 80 particles, neon-green/gold/white.
+- Hover lift on cards: 100ms, 2px Y-translate + soft primary glow.
+- No parallax, no scroll-jacking. We're a sportsbook, not a Webflow agency.
+
+### 13.9 Implementation Notes
+
+- **Tailwind config:** All colors above declared as theme tokens. Custom font stack defined for `font-display` (Geist Display / Inter Display) and `font-mono` (JetBrains Mono).
+- **Fonts:** Loaded via `next/font/google` (Inter, JetBrains Mono) + `next/font/local` for Geist Display.
+- **shadcn/ui:** Use as the base for primitives (Dialog, DropdownMenu, Toast, Tabs), then re-skin via Tailwind to the palette above. Override the default radius and colors in `globals.css` / `tailwind.config.ts`.
+- **Confetti library:** `canvas-confetti` (~2KB gzipped). Lazy-loaded only on the bet detail page.
+- **`react-countup`** or a hand-rolled `useCountUp` hook for the balance roll.
+- **Accessibility caveat:** This is an internal joke app. We meet basic standards (keyboard nav, focus rings, contrast on text), but the parody chrome (pulsing badges, confetti) is not behind reduced-motion guards in v1 unless it's trivial to add. Add `prefers-reduced-motion` opt-out for the LIVE pulse + balance counter if cheap; skip confetti gating.
+
+### 13.10 Out of Scope (style v1)
+
+- Mobile-specific layout polish (responsive is fine, but no PWA install / native gestures).
+- Light theme.
+- Custom illustration / mascot artwork beyond the crown glyph.
+- Sound effects (cash-register sounds on win would be funny but are out of scope).
+- A real DK-style "MISSION" or "STREAKS" gamification layer.
