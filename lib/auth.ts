@@ -18,9 +18,9 @@ function verify(signed: string): string | null {
   const value = signed.slice(0, idx);
   const sig = signed.slice(idx + 1);
   const expected = crypto.createHmac("sha256", env.COOKIE_SECRET).update(value).digest("hex");
-  const ok =
-    sig.length === expected.length &&
-    crypto.timingSafeEqual(Buffer.from(sig, "hex"), Buffer.from(expected, "hex"));
+  const sigBuf = Buffer.from(sig, "hex");
+  const expBuf = Buffer.from(expected, "hex");
+  const ok = sigBuf.length === expBuf.length && crypto.timingSafeEqual(sigBuf, expBuf);
   return ok ? value : null;
 }
 
