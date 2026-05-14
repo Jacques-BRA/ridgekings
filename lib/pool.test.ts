@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { computeParimutuelPayouts } from "./pool";
+import { computeParimutuelPayouts, computeGifChallengePayout } from "./pool";
 
 describe("computeParimutuelPayouts — basic", () => {
   it("splits the pool proportionally to stake on the winning side", () => {
@@ -106,5 +106,59 @@ describe("computeParimutuelPayouts — everyone-wins", () => {
       { userId: 30, wagerId: 3, amount: 300 },
     ]);
     expect(r.creatorTip).toBe(0);
+  });
+});
+
+describe("computeGifChallengePayout", () => {
+  it("pays the pool to the winning submitter", () => {
+    const r = computeGifChallengePayout({
+      submissions: [
+        { id: 1, userId: 10, voteCount: 3 },
+        { id: 2, userId: 20, voteCount: 1 },
+        { id: 3, userId: 30, voteCount: 1 },
+      ],
+      entryFee: 50,
+    });
+    expect(r.kind).toBe("paid");
+    if (r.kind !== "paid") throw new Error();
+    expect(r.winningSubmissionId).toBe(1);
+    expect(r.winnerUserId).toBe(10);
+    expect(r.payout).toBe(150);
+  });
+
+  it("voids when no submissions", () => {
+    const r = computeGifChallengePayout({ submissions: [], entryFee: 50 });
+    expect(r.kind).toBe("void");
+    if (r.kind !== "void") throw new Error();
+    expect(r.reason).toBe("no_submissions");
+  });
+
+  it("voids when no votes were cast", () => {
+    const r = computeGifChallengePayout({
+      submissions: [
+        { id: 1, userId: 10, voteCount: 0 },
+        { id: 2, userId: 20, voteCount: 0 },
+      ],
+      entryFee: 50,
+    });
+    expect(r.kind).toBe("void");
+    if (r.kind !== "void") throw new Error();
+    expect(r.reason).toBe("no_votes");
+    expect(r.refundUserIds).toEqual([10, 20]);
+  });
+
+  it("voids on tie for first", () => {
+    const r = computeGifChallengePayout({
+      submissions: [
+        { id: 1, userId: 10, voteCount: 2 },
+        { id: 2, userId: 20, voteCount: 2 },
+        { id: 3, userId: 30, voteCount: 1 },
+      ],
+      entryFee: 50,
+    });
+    expect(r.kind).toBe("void");
+    if (r.kind !== "void") throw new Error();
+    expect(r.reason).toBe("tie");
+    expect(r.refundUserIds).toEqual([10, 20, 30]);
   });
 });

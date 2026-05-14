@@ -40,3 +40,31 @@ export function computeParimutuelPayouts(input: {
   const creatorTip = totalPool - paidOut;
   return { kind: "paid", payouts, creatorTip, totalPool, winningPool };
 }
+
+export interface GifSubmissionTally {
+  id: number;
+  userId: number;
+  voteCount: number;
+}
+
+export type GifChallengeResult =
+  | { kind: "paid"; winningSubmissionId: number; winnerUserId: number; payout: number }
+  | { kind: "void"; reason: "no_submissions" | "no_votes" | "tie"; refundUserIds: number[] };
+
+export function computeGifChallengePayout(input: {
+  submissions: GifSubmissionTally[];
+  entryFee: number;
+}): GifChallengeResult {
+  const { submissions, entryFee } = input;
+  if (submissions.length === 0) return { kind: "void", reason: "no_submissions", refundUserIds: [] };
+  const totalVotes = submissions.reduce((s, x) => s + x.voteCount, 0);
+  if (totalVotes === 0) {
+    return { kind: "void", reason: "no_votes", refundUserIds: submissions.map((s) => s.userId) };
+  }
+  const max = Math.max(...submissions.map((s) => s.voteCount));
+  const top = submissions.filter((s) => s.voteCount === max);
+  if (top.length > 1) {
+    return { kind: "void", reason: "tie", refundUserIds: submissions.map((s) => s.userId) };
+  }
+  return { kind: "paid", winningSubmissionId: top[0].id, winnerUserId: top[0].userId, payout: submissions.length * entryFee };
+}
