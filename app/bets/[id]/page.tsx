@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
 import { db } from "@/db";
-import { bets, outcomes, wagers, users, settlementVotes } from "@/db/schema";
+import { bets, outcomes, wagers, users, settlementVotes, submissions, gifVotes } from "@/db/schema";
 import { eq, inArray } from "drizzle-orm";
 import { getCurrentUser, isAdmin } from "@/lib/auth";
 import { reconcileBetStatus } from "@/lib/sweeps";
@@ -10,6 +10,9 @@ import { PlaceWagerForm } from "./PlaceWagerForm";
 import { PropWagerForm } from "./PropWagerForm";
 import { CreatorSettleForm } from "./CreatorSettleForm";
 import { VoteSettleForm } from "./VoteSettleForm";
+import { GifSubmitForm } from "./GifSubmitForm";
+import { GifGallery } from "./GifGallery";
+import { GifVoteForm } from "./GifVoteForm";
 import { formatPoints, formatDeadlineCountdown } from "@/lib/format";
 import { LiveBadge, BoostBadge, VoidStamp, SettledBadge } from "@/components/BetBadges";
 import { BetDetailClient } from "./BetDetailClient";
@@ -120,6 +123,51 @@ export default async function BetDetailPage({ params }: { params: Promise<{ id: 
     }
   }
 
+  let gifView: ReactNode = null;
+  if (bet.betType === "gif_challenge") {
+    const subs = db.select().from(submissions).where(eq(submissions.betId, bet.id)).all();
+    const submitterIds = Array.from(new Set(subs.map((s) => s.userId)));
+    const subUsers = submitterIds.length
+      ? db.select().from(users).where(inArray(users.id, submitterIds)).all()
+      : [];
+    const subUsersMap = new Map(subUsers.map((u) => [u.id, u]));
+    const votes = db.select().from(gifVotes).where(eq(gifVotes.betId, bet.id)).all();
+    const voteCounts = new Map<number, number>();
+    for (const v of votes) voteCounts.set(v.submissionId, (voteCounts.get(v.submissionId) ?? 0) + 1);
+    const hasVoted = !!votes.find((v) => v.voterUserId === me?.id);
+    const mySub = subs.find((s) => s.userId === me?.id);
+
+    const galleryItems = subs.map((s) => ({
+      submission: s,
+      submitter: subUsersMap.get(s.userId),
+      voteCount: voteCounts.get(s.id) ?? 0,
+      isMine: s.userId === me?.id,
+      isWinner: bet.winningSubmissionId === s.id,
+    }));
+
+    gifView = (
+      <section className="mt-6 space-y-6">
+        <div>
+          <h3 className="mb-3 font-display text-display-md uppercase text-text-muted">Submissions</h3>
+          <GifGallery items={galleryItems} phase={bet.status as "open" | "voting" | "settled" | "voided"} />
+        </div>
+        {bet.status === "open" && me && !mySub && (
+          <GifSubmitForm betId={bet.id} entryFee={bet.entryFee ?? 0} maxBalance={me.balance} />
+        )}
+        {bet.status === "voting" && me && (
+          <GifVoteForm
+            betId={bet.id}
+            submissions={subs}
+            submitters={subUsersMap}
+            currentUserId={me.id}
+            hasVoted={hasVoted}
+            voteCounts={voteCounts}
+          />
+        )}
+      </section>
+    );
+  }
+
   return (
     <main className="mx-auto max-w-4xl px-4 py-8">
       <BetDetailClient betId={bet.id} initialStatus={bet.status} />
@@ -202,6 +250,7 @@ export default async function BetDetailPage({ params }: { params: Promise<{ id: 
       )}
 
       {(creatorView || voteView) && <section className="mt-6 space-y-4">{creatorView}{voteView}</section>}
+      {gifView}
     </main>
   );
 }
