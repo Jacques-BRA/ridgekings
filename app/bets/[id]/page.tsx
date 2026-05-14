@@ -16,6 +16,7 @@ import { GifVoteForm } from "./GifVoteForm";
 import { formatPoints, formatDeadlineCountdown } from "@/lib/format";
 import { LiveBadge, BoostBadge, VoidStamp, SettledBadge } from "@/components/BetBadges";
 import { BetDetailClient } from "./BetDetailClient";
+import { AdminPanel } from "./AdminPanel";
 
 export default async function BetDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -251,6 +252,16 @@ export default async function BetDetailPage({ params }: { params: Promise<{ id: 
 
       {(creatorView || voteView) && <section className="mt-6 space-y-4">{creatorView}{voteView}</section>}
       {gifView}
+
+      {isAdmin(me) && (
+        <AdminPanel
+          betId={bet.id}
+          betType={bet.betType}
+          outcomes={ocs}
+          submissions={bet.betType === "gif_challenge" ? db.select().from(submissions).where(eq(submissions.betId, bet.id)).all() : []}
+          isBoosted={bet.isBoosted === 1}
+        />
+      )}
     </main>
   );
 }
