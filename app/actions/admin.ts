@@ -99,14 +99,17 @@ export async function adminForceSettle(formData: FormData): Promise<void> {
     if (!parsed.submissionId) {
       applySettlement(bet.id, { betType: "gif", winningSubmissionId: null });
     } else {
-      const subs = db.select().from(submissions).where(eq(submissions.betId, bet.id)).all();
-      const winner = subs.find((s) => s.id === parsed.submissionId);
-      if (!winner) throw new Error("Submission not in bet");
-      const fee = bet.entryFee ?? 0;
-      const payout = subs.length * fee;
-      db.update(users).set({ balance: sql`${users.balance} + ${payout}` }).where(eq(users.id, winner.userId)).run();
-      db.insert(transactions).values({ userId: winner.userId, betId: bet.id, amount: payout, kind: "winnings", note: "admin force-settle" }).run();
-      db.update(bets).set({ status: "settled", settledAt: new Date().toISOString(), winningSubmissionId: winner.id }).where(eq(bets.id, bet.id)).run();
+      const tx = sqlite.transaction(() => {
+        const subs = db.select().from(submissions).where(eq(submissions.betId, bet.id)).all();
+        const winner = subs.find((s) => s.id === parsed.submissionId);
+        if (!winner) throw new Error("Submission not in bet");
+        const fee = bet.entryFee ?? 0;
+        const payout = subs.length * fee;
+        db.update(users).set({ balance: sql`${users.balance} + ${payout}` }).where(eq(users.id, winner.userId)).run();
+        db.insert(transactions).values({ userId: winner.userId, betId: bet.id, amount: payout, kind: "winnings", note: "admin force-settle" }).run();
+        db.update(bets).set({ status: "settled", settledAt: new Date().toISOString(), winningSubmissionId: winner.id }).where(eq(bets.id, bet.id)).run();
+      });
+      tx();
     }
   } else if (bet.betType === "prop") {
     applySettlement(bet.id, { betType: "prop", winningPropAnswer: parsed.propAnswer ?? null });
