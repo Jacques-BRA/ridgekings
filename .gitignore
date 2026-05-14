@@ -49,5 +49,6 @@ data/*.bak.*
 !data/.gitkeep
 .env.local
 .env*.local
+!.env.example
 playwright-report/
 test-results/
