@@ -3,7 +3,7 @@
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { db } from "@/db";
-import { bets, settlementVotes, wagers } from "@/db/schema";
+import { bets, settlementVotes, wagers, gifVotes, submissions } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 import { getCurrentUser, isAdmin } from "@/lib/auth";
 import { applySettlement } from "@/lib/apply-settlement";
@@ -38,6 +38,31 @@ export async function settleByCreator(formData: FormData): Promise<void> {
   }
   revalidatePath(`/bets/${bet.id}`);
   revalidatePath("/");
+}
+
+const CastGifVoteSchema = z.object({
+  betId: z.coerce.number().int().positive(),
+  submissionId: z.coerce.number().int().positive(),
+});
+
+export async function castGifVote(formData: FormData): Promise<void> {
+  const me = await getCurrentUser();
+  if (!me) throw new Error("Not signed in");
+  const parsed = CastGifVoteSchema.parse({
+    betId: formData.get("betId"),
+    submissionId: formData.get("submissionId"),
+  });
+  const bet = db.select().from(bets).where(eq(bets.id, parsed.betId)).get();
+  if (!bet) throw new Error("Bet not found");
+  if (bet.betType !== "gif_challenge") throw new Error("Not a GIF challenge");
+  if (bet.status !== "voting") throw new Error("Voting window not open");
+
+  const sub = db.select().from(submissions).where(and(eq(submissions.id, parsed.submissionId), eq(submissions.betId, bet.id))).get();
+  if (!sub) throw new Error("Submission not found");
+  if (sub.userId === me.id) throw new Error("You cannot vote for your own GIF");
+
+  db.insert(gifVotes).values({ betId: bet.id, voterUserId: me.id, submissionId: sub.id }).run();
+  revalidatePath(`/bets/${bet.id}`);
 }
 
 const CastVoteSchema = z.object({
