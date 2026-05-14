@@ -63,7 +63,7 @@ export function stipendSweep(): { credited: number } {
       .get();
     if (already) continue;
     db.insert(stipendLog).values({ userId: u.id, isoWeek: week }).run();
-    db.update(users).set({ balance: u.balance + env.WEEKLY_STIPEND }).where(eq(users.id, u.id)).run();
+    db.update(users).set({ balance: sql`${users.balance} + ${env.WEEKLY_STIPEND}` }).where(eq(users.id, u.id)).run();
     db.insert(transactions).values({
       userId: u.id,
       betId: null,
