@@ -1,26 +1,83 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --bg-base: #0A0F0A;
+  --bg-surface: #121712;
+  --bg-elevated: #1A211A;
+  --border: #1F2A1F;
+  --border-strong: #2A3A2A;
+  --text: #FFFFFF;
+  --text-muted: #A8B3A8;
+  --text-dim: #6B776B;
+  --primary: #53FC1A;
+  --primary-hover: #3FCC14;
+  --primary-press: #2FA80F;
+  --danger: #FF3B30;
+  --gold: #FFD700;
+  --live: #FF5C29;
+  --info: #00C2FF;
+  --radius: 12px;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+  --color-bg-base: var(--bg-base);
+  --color-bg-surface: var(--bg-surface);
+  --color-bg-elevated: var(--bg-elevated);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-text: var(--text);
+  --color-text-muted: var(--text-muted);
+  --color-text-dim: var(--text-dim);
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-press: var(--primary-press);
+  --color-danger: var(--danger);
+  --color-gold: var(--gold);
+  --color-live: var(--live);
+  --color-info: var(--info);
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+  --font-display: var(--font-display), system-ui, sans-serif;
+  --font-sans: var(--font-sans), system-ui, sans-serif;
+  --font-mono: var(--font-mono), ui-monospace, monospace;
+
+  --text-display-2xl: 64px;
+  --text-display-2xl--line-height: 64px;
+  --text-display-2xl--letter-spacing: -0.02em;
+  --text-display-xl: 48px;
+  --text-display-xl--line-height: 52px;
+  --text-display-xl--letter-spacing: -0.02em;
+  --text-display-lg: 32px;
+  --text-display-lg--line-height: 36px;
+  --text-display-lg--letter-spacing: -0.01em;
+  --text-display-md: 24px;
+  --text-display-md--line-height: 28px;
+
+  --animate-live-pulse: live-pulse 1s ease-in-out infinite;
+  --animate-void-stamp-in: void-stamp-in 250ms ease-out;
+
+  @keyframes live-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.6; }
+  }
+  @keyframes void-stamp-in {
+    from { opacity: 0; transform: rotate(-12deg) scale(1.4); }
+    to   { opacity: 1; transform: rotate(-12deg) scale(1); }
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@layer base {
+  html, body {
+    background: var(--bg-base);
+    color: var(--text);
+    font-family: var(--font-sans), system-ui, sans-serif;
+  }
+  * { border-color: var(--border); }
+  ::selection { background: var(--primary); color: #000; }
+  .tabular { font-variant-numeric: tabular-nums; }
+}
+
+@layer utilities {
+  .glow-primary { box-shadow: 0 0 16px rgba(83, 252, 26, 0.35); }
 }
