@@ -1,8 +1,8 @@
 import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
 import { db } from "@/db";
-import { bets, outcomes, wagers, users, settlementVotes, submissions, gifVotes } from "@/db/schema";
-import { eq, inArray } from "drizzle-orm";
+import { bets, outcomes, wagers, users, settlementVotes, submissions, gifVotes, transactions } from "@/db/schema";
+import { eq, inArray, sql } from "drizzle-orm";
 import { getCurrentUser, isAdmin } from "@/lib/auth";
 import { reconcileBetStatus } from "@/lib/sweeps";
 import { OddsDisplay } from "@/components/OddsDisplay";
@@ -17,6 +17,7 @@ import { formatPoints, formatDeadlineCountdown } from "@/lib/format";
 import { LiveBadge, BoostBadge, VoidStamp, SettledBadge } from "@/components/BetBadges";
 import { BetDetailClient } from "./BetDetailClient";
 import { AdminPanel } from "./AdminPanel";
+import { ConfettiBurst } from "@/components/ConfettiBurst";
 
 export default async function BetDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -43,6 +44,23 @@ export default async function BetDetailPage({ params }: { params: Promise<{ id: 
   const stakeByOutcome = new Map<number, number>();
   for (const w of allWagers) {
     if (w.outcomeId !== null) stakeByOutcome.set(w.outcomeId, (stakeByOutcome.get(w.outcomeId) ?? 0) + w.stake);
+  }
+
+  let didIWin = false;
+  if (bet.status === "settled" && me) {
+    if (bet.betType === "gif_challenge") {
+      const winnerSub = bet.winningSubmissionId
+        ? db.select().from(submissions).where(eq(submissions.id, bet.winningSubmissionId)).get()
+        : null;
+      didIWin = !!winnerSub && winnerSub.userId === me.id;
+    } else {
+      const myWinning = db
+        .select()
+        .from(transactions)
+        .where(sql`${transactions.userId} = ${me.id} AND ${transactions.betId} = ${bet.id} AND ${transactions.kind} = 'winnings' AND ${transactions.amount} > 0`)
+        .all();
+      didIWin = myWinning.length > 0;
+    }
   }
 
   let creatorView: ReactNode = null;
@@ -172,6 +190,7 @@ export default async function BetDetailPage({ params }: { params: Promise<{ id: 
   return (
     <main className="mx-auto max-w-4xl px-4 py-8">
       <BetDetailClient betId={bet.id} initialStatus={bet.status} />
+      <ConfettiBurst trigger={didIWin} />
       <div className="relative rounded-md border border-border bg-bg-surface p-6">
         <div className="mb-3 flex flex-wrap items-center gap-2">
           {bet.status === "open" && <LiveBadge />}
@@ -189,6 +208,25 @@ export default async function BetDetailPage({ params }: { params: Promise<{ id: 
         </div>
         {bet.status === "voided" && <VoidStamp />}
       </div>
+
+      {bet.status === "settled" && (
+        <div className="mt-6 rounded-md border border-primary/40 bg-bg-surface p-4 text-center">
+          <p className="font-display text-display-lg uppercase text-primary">
+            {didIWin ? "Winner Winner" : "Settled"}
+          </p>
+          <p className="mt-1 text-sm text-text-muted">
+            {didIWin
+              ? "You took home points. Don't spend them all at the vending machine."
+              : "Tough break. The book takes another one."}
+          </p>
+        </div>
+      )}
+      {bet.status === "voided" && (
+        <div className="mt-6 rounded-md border border-danger/40 bg-bg-surface p-4 text-center">
+          <p className="font-display text-display-lg uppercase text-danger">Bet Voided</p>
+          <p className="mt-1 text-sm text-text-muted">Stakes refunded. Move along.</p>
+        </div>
+      )}
 
       {/* Outcomes board for structured types */}
       {bet.betType !== "prop" && bet.betType !== "gif_challenge" && (
