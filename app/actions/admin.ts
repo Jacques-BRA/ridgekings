@@ -40,20 +40,20 @@ export async function adminVoidBet(formData: FormData): Promise<void> {
       }).run();
     }
 
-    if (bet.status === "settled") {
-      if (bet.betType === "gif_challenge") {
-        const subs = db.select().from(submissions).where(eq(submissions.betId, betId)).all();
-        for (const s of subs) {
-          const fee = bet.entryFee ?? 0;
-          db.update(users).set({ balance: sql`${users.balance} + ${fee}` }).where(eq(users.id, s.userId)).run();
-          db.insert(transactions).values({ userId: s.userId, betId, amount: fee, kind: "gif_refund", note: "admin void" }).run();
-        }
-      } else {
-        const ws = db.select().from(wagers).where(eq(wagers.betId, betId)).all();
-        for (const w of ws) {
-          db.update(users).set({ balance: sql`${users.balance} + ${w.stake}` }).where(eq(users.id, w.userId)).run();
-          db.insert(transactions).values({ userId: w.userId, betId, amount: w.stake, kind: "wager_refund", note: "admin void" }).run();
-        }
+    // Refund all stakes/fees regardless of pre-void status.
+    // (The early-return at the top of this transaction handles already-voided bets.)
+    if (bet.betType === "gif_challenge") {
+      const subs = db.select().from(submissions).where(eq(submissions.betId, betId)).all();
+      for (const s of subs) {
+        const fee = bet.entryFee ?? 0;
+        db.update(users).set({ balance: sql`${users.balance} + ${fee}` }).where(eq(users.id, s.userId)).run();
+        db.insert(transactions).values({ userId: s.userId, betId, amount: fee, kind: "gif_refund", note: "admin void" }).run();
+      }
+    } else {
+      const ws = db.select().from(wagers).where(eq(wagers.betId, betId)).all();
+      for (const w of ws) {
+        db.update(users).set({ balance: sql`${users.balance} + ${w.stake}` }).where(eq(users.id, w.userId)).run();
+        db.insert(transactions).values({ userId: w.userId, betId, amount: w.stake, kind: "wager_refund", note: "admin void" }).run();
       }
     }
     db.update(bets).set({
