@@ -46,3 +46,43 @@ describe("computeParimutuelPayouts — rounding", () => {
     expect(result.creatorTip).toBe(1);
   });
 });
+
+describe("computeParimutuelPayouts — voids", () => {
+  it("voids and refunds when there is a single bettor", () => {
+    const r = computeParimutuelPayouts({
+      wagers: [{ id: 1, userId: 10, outcomeKey: "YES", stake: 100 }],
+      winningOutcomeKey: "YES",
+      creatorUserId: 999,
+    });
+    expect(r.kind).toBe("void");
+    if (r.kind !== "void") throw new Error();
+    expect(r.reason).toBe("single_bettor");
+    expect(r.refunds).toEqual([{ wagerId: 1, userId: 10, amount: 100 }]);
+  });
+
+  it("voids and refunds when no one bet on the winning side", () => {
+    const r = computeParimutuelPayouts({
+      wagers: [
+        { id: 1, userId: 10, outcomeKey: "NO", stake: 50 },
+        { id: 2, userId: 20, outcomeKey: "NO", stake: 50 },
+      ],
+      winningOutcomeKey: "YES",
+      creatorUserId: 999,
+    });
+    expect(r.kind).toBe("void");
+    if (r.kind !== "void") throw new Error();
+    expect(r.reason).toBe("no_winners");
+    expect(r.refunds).toEqual([
+      { wagerId: 1, userId: 10, amount: 50 },
+      { wagerId: 2, userId: 20, amount: 50 },
+    ]);
+  });
+
+  it("voids with no_bettors when wagers is empty", () => {
+    const r = computeParimutuelPayouts({ wagers: [], winningOutcomeKey: "YES", creatorUserId: 999 });
+    expect(r.kind).toBe("void");
+    if (r.kind !== "void") throw new Error();
+    expect(r.reason).toBe("no_bettors");
+    expect(r.refunds).toEqual([]);
+  });
+});
