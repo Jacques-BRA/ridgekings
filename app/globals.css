@@ -81,3 +81,9 @@
 @layer utilities {
   .glow-primary { box-shadow: 0 0 16px rgba(83, 252, 26, 0.35); }
 }
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-live-pulse { animation: none !important; }
+  .animate-void-stamp-in { animation: none !important; }
+  * { transition-duration: 0ms !important; animation-duration: 0ms !important; }
+}
