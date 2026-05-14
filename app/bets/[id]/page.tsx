@@ -9,6 +9,7 @@ import { PlaceWagerForm } from "./PlaceWagerForm";
 import { PropWagerForm } from "./PropWagerForm";
 import { formatPoints, formatDeadlineCountdown } from "@/lib/format";
 import { LiveBadge, BoostBadge, VoidStamp, SettledBadge } from "@/components/BetBadges";
+import { BetDetailClient } from "./BetDetailClient";
 
 export default async function BetDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -39,6 +40,7 @@ export default async function BetDetailPage({ params }: { params: Promise<{ id: 
 
   return (
     <main className="mx-auto max-w-4xl px-4 py-8">
+      <BetDetailClient betId={bet.id} initialStatus={bet.status} />
       <div className="relative rounded-md border border-border bg-bg-surface p-6">
         <div className="mb-3 flex flex-wrap items-center gap-2">
           {bet.status === "open" && <LiveBadge />}
