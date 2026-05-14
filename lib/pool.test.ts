@@ -86,3 +86,25 @@ describe("computeParimutuelPayouts — voids", () => {
     expect(r.refunds).toEqual([]);
   });
 });
+
+describe("computeParimutuelPayouts — everyone-wins", () => {
+  it("returns stake-back when everyone bet the winning outcome", () => {
+    const r = computeParimutuelPayouts({
+      wagers: [
+        { id: 1, userId: 10, outcomeKey: "YES", stake: 100 },
+        { id: 2, userId: 20, outcomeKey: "YES", stake: 200 },
+        { id: 3, userId: 30, outcomeKey: "YES", stake: 300 },
+      ],
+      winningOutcomeKey: "YES",
+      creatorUserId: 999,
+    });
+    expect(r.kind).toBe("paid");
+    if (r.kind !== "paid") throw new Error();
+    expect(r.payouts).toEqual([
+      { userId: 10, wagerId: 1, amount: 100 },
+      { userId: 20, wagerId: 2, amount: 200 },
+      { userId: 30, wagerId: 3, amount: 300 },
+    ]);
+    expect(r.creatorTip).toBe(0);
+  });
+});
