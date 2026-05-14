@@ -1,5 +1,5 @@
 import { db } from "@/db";
-import { bets, wagers, submissions, type Bet } from "@/db/schema";
+import { bets, wagers, submissions, users, transactions, type Bet } from "@/db/schema";
 import { eq, inArray, sql } from "drizzle-orm";
 
 export interface BetSummary {
@@ -68,4 +68,49 @@ export function listBetsByStatuses(statuses: Bet["status"][], currentUserId: num
       yourStake: yourStakeMap.get(b.id) ?? null,
     };
   });
+}
+
+export interface LeaderboardRow {
+  user: { id: number; name: string; balance: number };
+  totalWinnings: number;
+  totalWagered: number;
+  betsPlaced: number;
+  betsWon: number;
+  biggestSingleWin: number;
+}
+
+export function buildLeaderboard(): LeaderboardRow[] {
+  const allUsers = db.select().from(users).all();
+  const rows: LeaderboardRow[] = [];
+  for (const u of allUsers) {
+    const txns = db.select().from(transactions).where(eq(transactions.userId, u.id)).all();
+    const totalWinnings = txns.filter((t) => t.kind === "winnings").reduce((s, t) => s + t.amount, 0);
+    const totalWagered = txns
+      .filter((t) => t.kind === "wager_lock" || t.kind === "gif_entry")
+      .reduce((s, t) => s + Math.abs(t.amount), 0);
+    const betsPlaced = txns.filter((t) => t.kind === "wager_lock" || t.kind === "gif_entry").length;
+    const betsWon = txns.filter((t) => t.kind === "winnings" && t.amount > 0).length;
+    const biggestSingleWin = txns
+      .filter((t) => t.kind === "winnings")
+      .reduce((max, t) => Math.max(max, t.amount), 0);
+    rows.push({
+      user: { id: u.id, name: u.name, balance: u.balance },
+      totalWinnings,
+      totalWagered,
+      betsPlaced,
+      betsWon,
+      biggestSingleWin,
+    });
+  }
+  return rows.sort((a, b) => b.user.balance - a.user.balance);
+}
+
+export function ledgerForUser(userId: number) {
+  return db
+    .select()
+    .from(transactions)
+    .where(eq(transactions.userId, userId))
+    .orderBy(transactions.id)
+    .all()
+    .reverse();
 }
