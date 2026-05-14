@@ -34,13 +34,13 @@ export default async function HomePage() {
 
       <Tabs defaultValue="open">
         <TabsList className="bg-bg-surface border border-border">
-          <TabsTrigger value="open" className="font-display uppercase tracking-wide data-[state=active]:bg-primary data-[state=active]:text-black">
+          <TabsTrigger value="open" className="font-display uppercase tracking-wide data-[active]:bg-primary data-[active]:text-black">
             Open <span className="ml-2 tabular">{openBets.length}</span>
           </TabsTrigger>
-          <TabsTrigger value="awaiting" className="font-display uppercase tracking-wide data-[state=active]:bg-primary data-[state=active]:text-black">
+          <TabsTrigger value="awaiting" className="font-display uppercase tracking-wide data-[active]:bg-primary data-[active]:text-black">
             Awaiting <span className="ml-2 tabular">{awaitingBets.length}</span>
           </TabsTrigger>
-          <TabsTrigger value="settled" className="font-display uppercase tracking-wide data-[state=active]:bg-primary data-[state=active]:text-black">
+          <TabsTrigger value="settled" className="font-display uppercase tracking-wide data-[active]:bg-primary data-[active]:text-black">
             Settled <span className="ml-2 tabular">{settledBets.length}</span>
           </TabsTrigger>
         </TabsList>
