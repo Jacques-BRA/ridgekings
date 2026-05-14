@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { getCurrentUser, isAdmin } from "@/lib/auth";
 import { UserPicker } from "./UserPicker";
-import { formatPoints } from "@/lib/format";
+import { BalanceCounter } from "./BalanceCounter";
 import { db } from "@/db";
 import { users } from "@/db/schema";
 
@@ -27,7 +27,7 @@ export async function TopBar() {
             <>
               <div className="text-right">
                 <div className="text-text-dim text-xs uppercase tracking-wide">Balance</div>
-                <div className="font-display text-2xl text-primary tabular">{formatPoints(me.balance)}<span className="text-text-dim text-xs ml-1">RKD</span></div>
+                <BalanceCounter initial={me.balance} />
               </div>
               <UserPicker currentName={me.name} users={allUsers} isAdmin={isAdmin(me)} />
             </>
