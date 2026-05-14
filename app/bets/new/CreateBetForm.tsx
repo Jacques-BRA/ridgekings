@@ -14,6 +14,8 @@ export function CreateBetForm() {
     try {
       await createBet(formData);
     } catch (e) {
+      const digest = (e as { digest?: string } | null | undefined)?.digest;
+      if (typeof digest === "string" && digest.startsWith("NEXT_REDIRECT")) throw e;
       setError(e instanceof Error ? e.message : "Something went wrong");
     }
   }
