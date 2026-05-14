@@ -18,7 +18,6 @@ export type ParimutuelResult =
 export function computeParimutuelPayouts(input: {
   wagers: ParimutuelWager[];
   winningOutcomeKey: string;
-  creatorUserId: number;
 }): ParimutuelResult {
   const { wagers, winningOutcomeKey } = input;
   if (wagers.length === 0) return { kind: "void", reason: "no_bettors", refunds: [] };

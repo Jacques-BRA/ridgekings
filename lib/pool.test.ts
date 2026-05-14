@@ -10,7 +10,6 @@ describe("computeParimutuelPayouts — basic", () => {
         { id: 3, userId: 30, outcomeKey: "NO", stake: 600 },
       ],
       winningOutcomeKey: "YES",
-      creatorUserId: 999,
     });
     expect(result.kind).toBe("paid");
     if (result.kind !== "paid") throw new Error();
@@ -34,7 +33,6 @@ describe("computeParimutuelPayouts — rounding", () => {
         { id: 4, userId: 40, outcomeKey: "NO", stake: 7 },
       ],
       winningOutcomeKey: "YES",
-      creatorUserId: 999,
     });
     expect(result.kind).toBe("paid");
     if (result.kind !== "paid") throw new Error();
@@ -52,7 +50,6 @@ describe("computeParimutuelPayouts — voids", () => {
     const r = computeParimutuelPayouts({
       wagers: [{ id: 1, userId: 10, outcomeKey: "YES", stake: 100 }],
       winningOutcomeKey: "YES",
-      creatorUserId: 999,
     });
     expect(r.kind).toBe("void");
     if (r.kind !== "void") throw new Error();
@@ -67,7 +64,6 @@ describe("computeParimutuelPayouts — voids", () => {
         { id: 2, userId: 20, outcomeKey: "NO", stake: 50 },
       ],
       winningOutcomeKey: "YES",
-      creatorUserId: 999,
     });
     expect(r.kind).toBe("void");
     if (r.kind !== "void") throw new Error();
@@ -79,7 +75,7 @@ describe("computeParimutuelPayouts — voids", () => {
   });
 
   it("voids with no_bettors when wagers is empty", () => {
-    const r = computeParimutuelPayouts({ wagers: [], winningOutcomeKey: "YES", creatorUserId: 999 });
+    const r = computeParimutuelPayouts({ wagers: [], winningOutcomeKey: "YES" });
     expect(r.kind).toBe("void");
     if (r.kind !== "void") throw new Error();
     expect(r.reason).toBe("no_bettors");
@@ -96,7 +92,6 @@ describe("computeParimutuelPayouts — everyone-wins", () => {
         { id: 3, userId: 30, outcomeKey: "YES", stake: 300 },
       ],
       winningOutcomeKey: "YES",
-      creatorUserId: 999,
     });
     expect(r.kind).toBe("paid");
     if (r.kind !== "paid") throw new Error();
@@ -160,5 +155,58 @@ describe("computeGifChallengePayout", () => {
     if (r.kind !== "void") throw new Error();
     expect(r.reason).toBe("tie");
     expect(r.refundUserIds).toEqual([10, 20, 30]);
+  });
+});
+
+describe("computeParimutuelPayouts — ledger invariant", () => {
+  it("guarantees totalPool === sum(payouts) + creatorTip in the paid branch", () => {
+    const result = computeParimutuelPayouts({
+      wagers: [
+        { id: 1, userId: 10, outcomeKey: "YES", stake: 7 },
+        { id: 2, userId: 20, outcomeKey: "YES", stake: 11 },
+        { id: 3, userId: 30, outcomeKey: "YES", stake: 13 },
+        { id: 4, userId: 40, outcomeKey: "NO", stake: 17 },
+      ],
+      winningOutcomeKey: "YES",
+    });
+    expect(result.kind).toBe("paid");
+    if (result.kind !== "paid") throw new Error();
+    const sumPayouts = result.payouts.reduce((s, p) => s + p.amount, 0);
+    expect(sumPayouts + result.creatorTip).toBe(result.totalPool);
+  });
+});
+
+describe("computeParimutuelPayouts — zero-stake edge case", () => {
+  it("returns a 0 payout for a zero-stake wager on the winning side (caller validates upstream)", () => {
+    const result = computeParimutuelPayouts({
+      wagers: [
+        { id: 1, userId: 10, outcomeKey: "YES", stake: 100 },
+        { id: 2, userId: 20, outcomeKey: "YES", stake: 0 },
+        { id: 3, userId: 30, outcomeKey: "NO", stake: 100 },
+      ],
+      winningOutcomeKey: "YES",
+    });
+    expect(result.kind).toBe("paid");
+    if (result.kind !== "paid") throw new Error();
+    // The zero-stake winner is still in the payouts array but receives 0.
+    const zeroStakePayout = result.payouts.find((p) => p.wagerId === 2);
+    expect(zeroStakePayout?.amount).toBe(0);
+    // Real winner gets the full pool minus their own stake-back.
+    const realWinnerPayout = result.payouts.find((p) => p.wagerId === 1);
+    expect(realWinnerPayout?.amount).toBe(200);
+  });
+});
+
+describe("computeGifChallengePayout — single submission", () => {
+  it("pays the single submitter when only one submission exists with votes", () => {
+    const r = computeGifChallengePayout({
+      submissions: [{ id: 1, userId: 10, voteCount: 3 }],
+      entryFee: 50,
+    });
+    expect(r.kind).toBe("paid");
+    if (r.kind !== "paid") throw new Error();
+    expect(r.winningSubmissionId).toBe(1);
+    expect(r.winnerUserId).toBe(10);
+    expect(r.payout).toBe(50);
   });
 });
