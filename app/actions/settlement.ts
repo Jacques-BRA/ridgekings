@@ -8,6 +8,8 @@ import { eq, and } from "drizzle-orm";
 import { getCurrentUser, isAdmin } from "@/lib/auth";
 import { applySettlement } from "@/lib/apply-settlement";
 import { tallyVoteSettlement } from "@/lib/settlement";
+import { logAction } from "@/lib/logger";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 const SettleByCreatorSchema = z.object({
   betId: z.coerce.number().int().positive(),
@@ -19,6 +21,8 @@ const SettleByCreatorSchema = z.object({
 export async function settleByCreator(formData: FormData): Promise<void> {
   const me = await getCurrentUser();
   if (!me) throw new Error("Not signed in");
+  checkRateLimit(`u:${me.id}`);
+  return logAction("settleByCreator", async () => {
   const parsed = SettleByCreatorSchema.parse({
     betId: formData.get("betId"),
     outcomeId: formData.get("outcomeId") ?? undefined,
@@ -38,6 +42,7 @@ export async function settleByCreator(formData: FormData): Promise<void> {
   }
   revalidatePath(`/bets/${bet.id}`);
   revalidatePath("/");
+  });
 }
 
 const CastGifVoteSchema = z.object({
@@ -48,6 +53,8 @@ const CastGifVoteSchema = z.object({
 export async function castGifVote(formData: FormData): Promise<void> {
   const me = await getCurrentUser();
   if (!me) throw new Error("Not signed in");
+  checkRateLimit(`u:${me.id}`);
+  return logAction("castGifVote", async () => {
   const parsed = CastGifVoteSchema.parse({
     betId: formData.get("betId"),
     submissionId: formData.get("submissionId"),
@@ -63,6 +70,7 @@ export async function castGifVote(formData: FormData): Promise<void> {
 
   db.insert(gifVotes).values({ betId: bet.id, voterUserId: me.id, submissionId: sub.id }).run();
   revalidatePath(`/bets/${bet.id}`);
+  });
 }
 
 const CastVoteSchema = z.object({
@@ -75,6 +83,8 @@ const CastVoteSchema = z.object({
 export async function castSettlementVote(formData: FormData): Promise<void> {
   const me = await getCurrentUser();
   if (!me) throw new Error("Not signed in");
+  checkRateLimit(`u:${me.id}`);
+  return logAction("castSettlementVote", async () => {
   const parsed = CastVoteSchema.parse({
     betId: formData.get("betId"),
     outcomeId: formData.get("outcomeId") ?? undefined,
@@ -130,4 +140,5 @@ export async function castSettlementVote(formData: FormData): Promise<void> {
 
   revalidatePath(`/bets/${bet.id}`);
   revalidatePath("/");
+  });
 }

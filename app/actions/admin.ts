@@ -7,18 +7,33 @@ import { bets, transactions, users, wagers, submissions } from "@/db/schema";
 import { eq, sql } from "drizzle-orm";
 import { getCurrentUser, isAdmin } from "@/lib/auth";
 import { applySettlement } from "@/lib/apply-settlement";
+import { CREATOR_FEE_BPS } from "@/lib/pool";
+import { logAction } from "@/lib/logger";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 async function assertAdmin(): Promise<void> {
   const u = await getCurrentUser();
   if (!isAdmin(u)) throw new Error("Admin only");
 }
 
+async function assertAdminOrCreator(betId: number): Promise<void> {
+  const u = await getCurrentUser();
+  if (!u) throw new Error("Not signed in");
+  if (isAdmin(u)) return;
+  const bet = db.select().from(bets).where(eq(bets.id, betId)).get();
+  if (!bet) throw new Error("Bet not found");
+  if (bet.creatorId !== u.id) throw new Error("Creator or admin only");
+}
+
 const VoidSchema = z.object({ betId: z.coerce.number().int().positive() });
 
 export async function adminVoidBet(formData: FormData): Promise<void> {
-  await assertAdmin();
+  const me = await getCurrentUser();
+  if (!me) throw new Error("Not signed in");
+  checkRateLimit(`u:${me.id}`);
   const { betId } = VoidSchema.parse({ betId: formData.get("betId") });
-
+  await assertAdminOrCreator(betId);
+  return logAction("adminVoidBet", async () => {
   const tx = sqlite.transaction(() => {
     const bet = db.select().from(bets).where(eq(bets.id, betId)).get();
     if (!bet) throw new Error("Bet not found");
@@ -68,6 +83,7 @@ export async function adminVoidBet(formData: FormData): Promise<void> {
 
   revalidatePath(`/bets/${betId}`);
   revalidatePath("/");
+  });
 }
 
 const ForceSettleSchema = z.object({
@@ -78,7 +94,11 @@ const ForceSettleSchema = z.object({
 });
 
 export async function adminForceSettle(formData: FormData): Promise<void> {
+  const me = await getCurrentUser();
+  if (!me) throw new Error("Not signed in");
+  checkRateLimit(`u:${me.id}`);
   await assertAdmin();
+  return logAction("adminForceSettle", async () => {
   const parsed = ForceSettleSchema.parse({
     betId: formData.get("betId"),
     outcomeId: formData.get("outcomeId") ?? undefined,
@@ -104,9 +124,15 @@ export async function adminForceSettle(formData: FormData): Promise<void> {
         const winner = subs.find((s) => s.id === parsed.submissionId);
         if (!winner) throw new Error("Submission not in bet");
         const fee = bet.entryFee ?? 0;
-        const payout = subs.length * fee;
+        const totalPool = subs.length * fee;
+        const creatorEarning = Math.floor((totalPool * CREATOR_FEE_BPS) / 10000);
+        const payout = totalPool - creatorEarning;
         db.update(users).set({ balance: sql`${users.balance} + ${payout}` }).where(eq(users.id, winner.userId)).run();
         db.insert(transactions).values({ userId: winner.userId, betId: bet.id, amount: payout, kind: "winnings", note: "admin force-settle" }).run();
+        if (creatorEarning > 0) {
+          db.update(users).set({ balance: sql`${users.balance} + ${creatorEarning}` }).where(eq(users.id, bet.creatorId)).run();
+          db.insert(transactions).values({ userId: bet.creatorId, betId: bet.id, amount: creatorEarning, kind: "winnings", note: "creator share (5%)" }).run();
+        }
         db.update(bets).set({ status: "settled", settledAt: new Date().toISOString(), winningSubmissionId: winner.id }).where(eq(bets.id, bet.id)).run();
       });
       tx();
@@ -119,16 +145,22 @@ export async function adminForceSettle(formData: FormData): Promise<void> {
 
   revalidatePath(`/bets/${bet.id}`);
   revalidatePath("/");
+  });
 }
 
 const ToggleBoostSchema = z.object({ betId: z.coerce.number().int().positive() });
 
 export async function toggleBoost(formData: FormData): Promise<void> {
-  await assertAdmin();
+  const me = await getCurrentUser();
+  if (!me) throw new Error("Not signed in");
+  checkRateLimit(`u:${me.id}`);
   const { betId } = ToggleBoostSchema.parse({ betId: formData.get("betId") });
+  await assertAdminOrCreator(betId);
+  return logAction("toggleBoost", async () => {
   const b = db.select().from(bets).where(eq(bets.id, betId)).get();
   if (!b) throw new Error("Bet not found");
   db.update(bets).set({ isBoosted: b.isBoosted === 1 ? 0 : 1 }).where(eq(bets.id, betId)).run();
   revalidatePath(`/bets/${betId}`);
   revalidatePath("/");
+  });
 }

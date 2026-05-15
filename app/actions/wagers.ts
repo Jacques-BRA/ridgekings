@@ -7,6 +7,8 @@ import { bets, wagers, outcomes, users, transactions, submissions } from "@/db/s
 import { getCurrentUser } from "@/lib/auth";
 import { and, eq } from "drizzle-orm";
 import { isValidGifUrl } from "@/lib/gif-url";
+import { logAction } from "@/lib/logger";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 const PlaceWagerSchema = z.object({
   betId: z.coerce.number().int().positive(),
@@ -18,6 +20,8 @@ const PlaceWagerSchema = z.object({
 export async function placeWager(formData: FormData): Promise<void> {
   const me = await getCurrentUser();
   if (!me) throw new Error("Not signed in");
+  checkRateLimit(`u:${me.id}`);
+  return logAction("placeWager", async () => {
   const parsed = PlaceWagerSchema.parse({
     betId: formData.get("betId"),
     outcomeId: formData.get("outcomeId") ?? undefined,
@@ -66,6 +70,7 @@ export async function placeWager(formData: FormData): Promise<void> {
 
   revalidatePath(`/bets/${parsed.betId}`);
   revalidatePath("/");
+  });
 }
 
 const SubmitGifSchema = z.object({
@@ -77,6 +82,8 @@ const SubmitGifSchema = z.object({
 export async function submitGif(formData: FormData): Promise<void> {
   const me = await getCurrentUser();
   if (!me) throw new Error("Not signed in");
+  checkRateLimit(`u:${me.id}`);
+  return logAction("submitGif", async () => {
   const parsed = SubmitGifSchema.parse({
     betId: formData.get("betId"),
     gifUrl: formData.get("gifUrl"),
@@ -110,4 +117,5 @@ export async function submitGif(formData: FormData): Promise<void> {
 
   revalidatePath(`/bets/${parsed.betId}`);
   revalidatePath("/");
+  });
 }

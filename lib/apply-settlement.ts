@@ -64,9 +64,9 @@ export function applySettlement(betId: number, outcome: ApplySettlementOutcome):
       db.update(users).set({ balance: sql`${users.balance} + ${p.amount}` }).where(eq(users.id, p.userId)).run();
       db.insert(transactions).values({ userId: p.userId, betId: bet.id, amount: p.amount, kind: "winnings", note: null }).run();
     }
-    if (result.creatorTip > 0) {
-      db.update(users).set({ balance: sql`${users.balance} + ${result.creatorTip}` }).where(eq(users.id, bet.creatorId)).run();
-      db.insert(transactions).values({ userId: bet.creatorId, betId: bet.id, amount: result.creatorTip, kind: "winnings", note: "house tip (rounding)" }).run();
+    if (result.creatorEarning > 0) {
+      db.update(users).set({ balance: sql`${users.balance} + ${result.creatorEarning}` }).where(eq(users.id, bet.creatorId)).run();
+      db.insert(transactions).values({ userId: bet.creatorId, betId: bet.id, amount: result.creatorEarning, kind: "winnings", note: "creator share (5% + rounding)" }).run();
     }
     db.update(bets)
       .set({
@@ -109,5 +109,9 @@ function applyGifSettlement(bet: Bet): void {
   }
   db.update(users).set({ balance: sql`${users.balance} + ${r.payout}` }).where(eq(users.id, r.winnerUserId)).run();
   db.insert(transactions).values({ userId: r.winnerUserId, betId: bet.id, amount: r.payout, kind: "winnings", note: "GIF challenge win" }).run();
+  if (r.creatorEarning > 0) {
+    db.update(users).set({ balance: sql`${users.balance} + ${r.creatorEarning}` }).where(eq(users.id, bet.creatorId)).run();
+    db.insert(transactions).values({ userId: bet.creatorId, betId: bet.id, amount: r.creatorEarning, kind: "winnings", note: "creator share (5%)" }).run();
+  }
   db.update(bets).set({ status: "settled", settledAt: new Date().toISOString(), winningSubmissionId: r.winningSubmissionId }).where(eq(bets.id, bet.id)).run();
 }

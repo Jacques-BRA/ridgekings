@@ -203,7 +203,16 @@ export default async function BetDetailPage({ params }: { params: Promise<{ id: 
         <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
           <Stat label="Pool" value={`${formatPoints(totalPool)} RKD`} accent />
           <Stat label="Bettors" value={String(allWagers.length)} />
-          <Stat label={bet.status === "open" ? "Closes" : "Closed"} value={bet.status === "open" ? formatDeadlineCountdown(bet.deadline) : "—"} />
+          <Stat
+            label={bet.status === "open" ? "Closes" : bet.status === "voting" ? "Voting Closes" : "Closed"}
+            value={
+              bet.status === "open"
+                ? formatDeadlineCountdown(bet.deadline)
+                : bet.status === "voting" && bet.votingDeadline
+                ? formatDeadlineCountdown(bet.votingDeadline)
+                : "—"
+            }
+          />
           <Stat label="Creator" value={usersById.get(bet.creatorId)?.name ?? "?"} />
         </div>
         {bet.status === "voided" && <VoidStamp />}
@@ -291,13 +300,14 @@ export default async function BetDetailPage({ params }: { params: Promise<{ id: 
       {(creatorView || voteView) && <section className="mt-6 space-y-4">{creatorView}{voteView}</section>}
       {gifView}
 
-      {isAdmin(me) && (
+      {(isAdmin(me) || me?.id === bet.creatorId) && (
         <AdminPanel
           betId={bet.id}
           betType={bet.betType}
           outcomes={ocs}
           submissions={bet.betType === "gif_challenge" ? db.select().from(submissions).where(eq(submissions.betId, bet.id)).all() : []}
           isBoosted={bet.isBoosted === 1}
+          canForceSettle={isAdmin(me)}
         />
       )}
     </main>

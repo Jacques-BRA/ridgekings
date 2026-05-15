@@ -6,6 +6,8 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/db";
 import { bets, outcomes } from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth";
+import { logAction } from "@/lib/logger";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 const BaseSchema = z.object({
   title: z.string().trim().min(3).max(140),
@@ -57,7 +59,9 @@ function toIso(s: string): string {
 export async function createBet(formData: FormData): Promise<void> {
   const me = await getCurrentUser();
   if (!me) throw new Error("Not signed in");
+  checkRateLimit(`u:${me.id}`);
 
+  const newBetId = await logAction("createBet", async () => {
   const raw: Record<string, unknown> = {
     betType: formData.get("betType"),
     title: formData.get("title"),
@@ -135,6 +139,8 @@ export async function createBet(formData: FormData): Promise<void> {
       .run();
   }
 
+  return inserted.id;
+  });
   revalidatePath("/");
-  redirect(`/bets/${inserted.id}`);
+  redirect(`/bets/${newBetId}`);
 }

@@ -1,0 +1,42 @@
+# Drop this in /etc/caddy/Caddyfile (Linux) or C:\Caddy\Caddyfile (Windows).
+# Replace `ridgekings.your-company.com` with your real hostname.
+# Caddy will fetch and renew a Let's Encrypt cert automatically on first request.
+
+ridgekings.your-company.com {
+    encode zstd gzip
+
+    # Forward the real client IP/proto into the Node app
+    reverse_proxy localhost:3000 {
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-For {remote_host}
+        header_up X-Forwarded-Proto {scheme}
+    }
+
+    # Security headers
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        X-Content-Type-Options nosniff
+        Referrer-Policy strict-origin-when-cross-origin
+        X-Frame-Options DENY
+    }
+
+    # Don't leak the upstream Node banner
+    header -Server
+
+    # Log to stdout (systemd captures it) — switch to a file if you prefer
+    log {
+        output stdout
+        format json
+    }
+}
+
+# --- Local-network / no-public-DNS variant ----------------------------------
+# If the box is on your office LAN and you don't have a public hostname,
+# uncomment the block below and use Caddy's internal CA (won't be trusted
+# by browsers by default — you'll need to install the Caddy root cert on
+# user machines, or just accept the warning once).
+
+# ridgekings.local.internal {
+#     tls internal
+#     reverse_proxy localhost:3000
+# }

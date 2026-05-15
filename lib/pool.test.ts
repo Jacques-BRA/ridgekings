@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { computeParimutuelPayouts, computeGifChallengePayout } from "./pool";
 
 describe("computeParimutuelPayouts — basic", () => {
-  it("splits the pool proportionally to stake on the winning side", () => {
+  it("splits the after-fee pool proportionally to stake on the winning side", () => {
     const result = computeParimutuelPayouts({
       wagers: [
         { id: 1, userId: 10, outcomeKey: "YES", stake: 100 },
@@ -14,17 +14,17 @@ describe("computeParimutuelPayouts — basic", () => {
     expect(result.kind).toBe("paid");
     if (result.kind !== "paid") throw new Error();
     expect(result.payouts).toEqual([
-      { userId: 10, wagerId: 1, amount: 250 },
-      { userId: 20, wagerId: 2, amount: 750 },
+      { userId: 10, wagerId: 1, amount: 237 },
+      { userId: 20, wagerId: 2, amount: 712 },
     ]);
-    expect(result.creatorTip).toBe(0);
+    expect(result.creatorEarning).toBe(51);
     expect(result.totalPool).toBe(1000);
     expect(result.winningPool).toBe(400);
   });
 });
 
 describe("computeParimutuelPayouts — rounding", () => {
-  it("credits the rounding remainder to the bet creator", () => {
+  it("credits the rounding remainder to the bet creator (small pool: fee rounds to 0)", () => {
     const result = computeParimutuelPayouts({
       wagers: [
         { id: 1, userId: 10, outcomeKey: "YES", stake: 1 },
@@ -41,7 +41,7 @@ describe("computeParimutuelPayouts — rounding", () => {
       { userId: 20, wagerId: 2, amount: 3 },
       { userId: 30, wagerId: 3, amount: 3 },
     ]);
-    expect(result.creatorTip).toBe(1);
+    expect(result.creatorEarning).toBe(1);
   });
 });
 
@@ -84,7 +84,7 @@ describe("computeParimutuelPayouts — voids", () => {
 });
 
 describe("computeParimutuelPayouts — everyone-wins", () => {
-  it("returns stake-back when everyone bet the winning outcome", () => {
+  it("returns stake-back minus creator fee when everyone bet the winning outcome", () => {
     const r = computeParimutuelPayouts({
       wagers: [
         { id: 1, userId: 10, outcomeKey: "YES", stake: 100 },
@@ -96,16 +96,16 @@ describe("computeParimutuelPayouts — everyone-wins", () => {
     expect(r.kind).toBe("paid");
     if (r.kind !== "paid") throw new Error();
     expect(r.payouts).toEqual([
-      { userId: 10, wagerId: 1, amount: 100 },
-      { userId: 20, wagerId: 2, amount: 200 },
-      { userId: 30, wagerId: 3, amount: 300 },
+      { userId: 10, wagerId: 1, amount: 95 },
+      { userId: 20, wagerId: 2, amount: 190 },
+      { userId: 30, wagerId: 3, amount: 285 },
     ]);
-    expect(r.creatorTip).toBe(0);
+    expect(r.creatorEarning).toBe(30);
   });
 });
 
 describe("computeGifChallengePayout", () => {
-  it("pays the pool to the winning submitter", () => {
+  it("pays the after-fee pool to the winning submitter, fee to the creator", () => {
     const r = computeGifChallengePayout({
       submissions: [
         { id: 1, userId: 10, voteCount: 3 },
@@ -118,7 +118,8 @@ describe("computeGifChallengePayout", () => {
     if (r.kind !== "paid") throw new Error();
     expect(r.winningSubmissionId).toBe(1);
     expect(r.winnerUserId).toBe(10);
-    expect(r.payout).toBe(150);
+    expect(r.payout).toBe(143);
+    expect(r.creatorEarning).toBe(7);
   });
 
   it("voids when no submissions", () => {
@@ -159,7 +160,7 @@ describe("computeGifChallengePayout", () => {
 });
 
 describe("computeParimutuelPayouts — ledger invariant", () => {
-  it("guarantees totalPool === sum(payouts) + creatorTip in the paid branch", () => {
+  it("guarantees totalPool === sum(payouts) + creatorEarning in the paid branch", () => {
     const result = computeParimutuelPayouts({
       wagers: [
         { id: 1, userId: 10, outcomeKey: "YES", stake: 7 },
@@ -172,7 +173,7 @@ describe("computeParimutuelPayouts — ledger invariant", () => {
     expect(result.kind).toBe("paid");
     if (result.kind !== "paid") throw new Error();
     const sumPayouts = result.payouts.reduce((s, p) => s + p.amount, 0);
-    expect(sumPayouts + result.creatorTip).toBe(result.totalPool);
+    expect(sumPayouts + result.creatorEarning).toBe(result.totalPool);
   });
 });
 
@@ -191,9 +192,9 @@ describe("computeParimutuelPayouts — zero-stake edge case", () => {
     // The zero-stake winner is still in the payouts array but receives 0.
     const zeroStakePayout = result.payouts.find((p) => p.wagerId === 2);
     expect(zeroStakePayout?.amount).toBe(0);
-    // Real winner gets the full pool minus their own stake-back.
+    // Real winner gets the full after-fee pool.
     const realWinnerPayout = result.payouts.find((p) => p.wagerId === 1);
-    expect(realWinnerPayout?.amount).toBe(200);
+    expect(realWinnerPayout?.amount).toBe(190);
   });
 });
 
@@ -207,6 +208,7 @@ describe("computeGifChallengePayout — single submission", () => {
     if (r.kind !== "paid") throw new Error();
     expect(r.winningSubmissionId).toBe(1);
     expect(r.winnerUserId).toBe(10);
-    expect(r.payout).toBe(50);
+    expect(r.payout).toBe(48);
+    expect(r.creatorEarning).toBe(2);
   });
 });

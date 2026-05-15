@@ -1,9 +1,11 @@
 "use client";
 import { useEffect } from "react";
+import { usePrefersReducedMotion } from "@/lib/use-reduced-motion";
 
 export function ConfettiBurst({ trigger }: { trigger: boolean }) {
+  const reduceMotion = usePrefersReducedMotion();
   useEffect(() => {
-    if (!trigger) return;
+    if (!trigger || reduceMotion) return;
     let cancelled = false;
     (async () => {
       const confetti = (await import("canvas-confetti")).default;
@@ -17,6 +19,6 @@ export function ConfettiBurst({ trigger }: { trigger: boolean }) {
       })();
     })();
     return () => { cancelled = true; };
-  }, [trigger]);
+  }, [trigger, reduceMotion]);
   return null;
 }

@@ -9,12 +9,14 @@ export function AdminPanel({
   outcomes,
   submissions,
   isBoosted,
+  canForceSettle,
 }: {
   betId: number;
   betType: "yes_no" | "multi_choice" | "over_under" | "prop" | "gif_challenge";
   outcomes: Outcome[];
   submissions: Submission[];
   isBoosted: boolean;
+  canForceSettle: boolean;
 }) {
   const [pickedOutcome, setPickedOutcome] = useState<string>("");
   const [propAnswer, setPropAnswer] = useState("");
@@ -28,7 +30,9 @@ export function AdminPanel({
 
   return (
     <section className="mt-6 rounded-md border border-gold/40 bg-bg-surface p-4">
-      <h3 className="mb-3 font-display text-display-md uppercase text-gold">Admin Console</h3>
+      <h3 className="mb-3 font-display text-display-md uppercase text-gold">
+        {canForceSettle ? "Admin Console" : "Creator Controls"}
+      </h3>
 
       <form action={(fd) => run(toggleBoost, fd)} className="mb-4 flex items-center justify-between">
         <input type="hidden" name="betId" value={betId} />
@@ -45,6 +49,7 @@ export function AdminPanel({
         </button>
       </form>
 
+      {canForceSettle && (
       <form action={(fd) => run(adminForceSettle, fd)} className="space-y-2 border-t border-border pt-3">
         <input type="hidden" name="betId" value={betId} />
         <p className="text-xs uppercase tracking-widest text-text-dim">Force-settle to a winner</p>
@@ -103,6 +108,8 @@ export function AdminPanel({
           Force settle
         </button>
       </form>
+      )}
+      {!canForceSettle && error && <p className="mt-2 text-sm text-danger">{error}</p>}
     </section>
   );
 }
