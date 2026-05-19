@@ -1,0 +1,38 @@
+# Source control & local-only state
+.git
+.gitignore
+.github
+
+# Editor / tooling
+.claude
+.cursor
+.vscode
+.idea
+*.swp
+.DS_Store
+Thumbs.db
+
+# Build artifacts (the Dockerfile rebuilds them)
+.next
+node_modules
+out
+dist
+
+# Runtime data — NEVER ship these into an image
+data
+logs
+backups
+*.db
+*.db-wal
+*.db-shm
+tmp-backup
+
+# Env files — read from Railway dashboard at runtime
+.env
+.env.local
+.env.*.local
+
+# Misc
+README.md
+docs
+*.log

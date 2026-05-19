@@ -1,6 +1,9 @@
-# RidgeKings — Deploy Runbook
+# RidgeKings — Self-host Deploy Runbook
 
-This document covers deploying RidgeKings to a long-lived server (Linux or Windows). The app is a Next.js process plus a SQLite file. The in-process scheduler (`lib/scheduler.ts`) means it must run as a single long-lived process — **do not deploy to serverless platforms** (Vercel/Lambda) without first moving the cron jobs out to an external trigger.
+> **The recommended deployment is Railway — see [`RAILWAY-DEPLOY.md`](./RAILWAY-DEPLOY.md).**
+> This document covers the alternate "self-host on a company Linux or Windows server" path, which is still fully supported.
+
+The app is a Next.js process plus a SQLite file. The in-process scheduler (`lib/scheduler.ts`) means it must run as a single long-lived process — **do not deploy to serverless platforms** (Vercel/Lambda) without first moving the cron jobs out to an external trigger.
 
 ## Prereqs on the box
 
