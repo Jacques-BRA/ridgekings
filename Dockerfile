@@ -58,6 +58,7 @@ COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/db ./db
 COPY --from=builder /app/drizzle.config.ts ./drizzle.config.ts
+COPY --from=builder /app/next.config.ts ./next.config.ts
 COPY --from=builder /app/package.json ./package.json
 COPY --from=builder /app/scripts ./scripts
 
@@ -77,5 +78,9 @@ EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
   CMD wget -q --spider http://127.0.0.1:${PORT:-3000}/api/health || exit 1
 
-# Start: apply pending migrations, then serve.
-CMD ["sh", "-c", "node scripts/migrate.mjs && node node_modules/next/dist/bin/next start -H 0.0.0.0 -p ${PORT:-3000}"]
+# Start: apply pending migrations, then serve. The `exec` makes Node the
+# PID 1 process, which avoids some stdio-buffering quirks in BusyBox sh
+# and forwards SIGTERM cleanly for graceful shutdown. The echo lines
+# give us checkpoints in the Railway runtime log so a hang is observable
+# rather than silent.
+CMD ["sh", "-c", "set -e; echo '[startup] running migrations...'; node scripts/migrate.mjs; echo '[startup] migrations OK, launching Next.js on :'${PORT:-3000}; exec node node_modules/next/dist/bin/next start -H 0.0.0.0 -p ${PORT:-3000}"]
