@@ -13,12 +13,12 @@ RUN apt-get update \
   && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY package.json pnpm-lock.yaml ./
-# Upgrade corepack first — Node images ship with an older corepack whose
-# bundled pnpm signing keys are stale, which causes `corepack enable pnpm`
-# to fail with "Cannot find matching keyid". Pinning to a newer corepack
-# refreshes the trusted keys.
-RUN npm install -g corepack@latest \
-  && corepack enable pnpm \
+# Install pnpm directly rather than going through corepack. Corepack 0.30+
+# has signature-verification quirks (stale bundled keys; silently ignores
+# the `packageManager` field when it lacks a SHA hash), and pnpm 11+
+# blocks native install scripts by default — which breaks better-sqlite3.
+# Pinning pnpm 9 via npm sidesteps all of that.
+RUN npm install -g pnpm@9.15.9 \
   && pnpm install --frozen-lockfile --prod=false
 
 # ---------- builder ----------
