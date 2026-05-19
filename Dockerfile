@@ -78,9 +78,9 @@ EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
   CMD wget -q --spider http://127.0.0.1:${PORT:-3000}/api/health || exit 1
 
-# Start: apply pending migrations, then serve. The `exec` makes Node the
-# PID 1 process, which avoids some stdio-buffering quirks in BusyBox sh
-# and forwards SIGTERM cleanly for graceful shutdown. The echo lines
-# give us checkpoints in the Railway runtime log so a hang is observable
-# rather than silent.
-CMD ["sh", "-c", "set -e; echo '[startup] running migrations...'; node scripts/migrate.mjs; echo '[startup] migrations OK, launching Next.js on :'${PORT:-3000}; exec node node_modules/next/dist/bin/next start -H 0.0.0.0 -p ${PORT:-3000}"]
+# Start: a small Node entrypoint that runs migrations, prints checkpoints,
+# and exec-spawns `next start`. Doing this in Node (rather than sh -c)
+# gives us reliable unbuffered stdout — sh's builtin echo was being
+# silently lost in Railway's log capture, masking whatever was actually
+# crashing during startup.
+CMD ["node", "scripts/start.mjs"]
