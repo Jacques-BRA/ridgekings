@@ -20,12 +20,22 @@ Create `/etc/ridgekings/env` (Linux) or set Windows env vars for the service acc
 |-----|----------|-------|
 | `COOKIE_SECRET` | **yes** | At least 32 random bytes hex. Generate: `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"` |
 | `DATABASE_URL` | no | Defaults to `file:./data/app.db`. Use absolute path in prod, e.g. `file:/var/lib/ridgekings/app.db` |
-| `ADMIN_USERNAME` | no | Defaults to `admin`. Once SSO is wired this should match the canonical Entra display name |
+| `ADMIN_USERNAME` | no | Defaults to `admin`. Match the canonical Entra display name of whoever has admin powers. |
 | `STARTING_BALANCE` | no | Defaults to 1000 |
 | `WEEKLY_STIPEND` | no | Defaults to 200 |
 | `NODE_ENV` | yes | Set to `production` |
 | `PORT` | no | Defaults to 3000 |
 | `LOG_DIR` | no | Defaults to `./logs`. Use absolute path in prod, e.g. `/var/log/ridgekings` |
+| `AUTH_SECRET` | **yes** | At least 16 chars. Generate: `openssl rand -base64 33`. Signs Auth.js session cookies. |
+| `AUTH_MICROSOFT_ENTRA_ID_ID` | **yes** | Application (client) ID from Entra app registration |
+| `AUTH_MICROSOFT_ENTRA_ID_SECRET` | **yes** | Client secret **Value** (not the Secret ID GUID) |
+| `AUTH_MICROSOFT_ENTRA_ID_TENANT_ID` | **yes** | Directory (tenant) ID from Entra app registration |
+| `APP_PUBLIC_URL` | no | e.g. `https://ridgekings.your-company.com`. Base URL for Teams deep-link buttons |
+| `TEAMS_WEBHOOK_URL` | no | Power Automate Workflow URL. No-op when unset. |
+| `TEAMS_NOTIFICATIONS_ENABLED` | no | Set to `1` to enable. Off by default. |
+| `DEV_BYPASS_AUTH` | no | **Never set in production** — the proxy returns 500 if it sees `1` while `NODE_ENV=production`. Used locally to skip the Entra sign-in. |
+| `DEV_BYPASS_EMAIL` | no | Dev only. Email to inject when bypass is active. Defaults to `dev@local.test`. |
+| `DEV_BYPASS_NAME` | no | Dev only. Display name when bypass is active. Defaults to `Local Dev`. |
 
 ## Build and run
 
@@ -88,7 +98,33 @@ ridgekings.your-company.com {
 }
 ```
 
-Caddy fetches Let's Encrypt certs automatically. If the box is behind your office firewall and you don't want to open port 80/443, use Cloudflare Tunnel instead.
+Caddy fetches Let's Encrypt certs automatically.
+
+## Authentication (Microsoft Entra ID)
+
+Auth.js (next-auth v5) handles the OIDC flow against your Entra tenant. One-time setup:
+
+1. **Entra admin center → App registrations → New registration**
+   - Name: `RidgeKings`
+   - Account types: "Accounts in this organizational directory only (single tenant)"
+   - Skip the redirect URI for now
+2. **Overview tab** — copy the **Application (client) ID** and **Directory (tenant) ID**.
+3. **Certificates & secrets → Client secrets → New client secret** (12 months max). **Copy the Value immediately** — it disappears after you leave the page.
+4. **API permissions → Add a permission → Microsoft Graph → Delegated → User.Read** → Grant admin consent.
+5. **Authentication → Add a platform → Web** → Redirect URI: `https://ridgekings.your-company.com/api/auth/callback/microsoft-entra-id` → Save.
+6. Drop the four values into `/etc/ridgekings/env`:
+   ```
+   AUTH_SECRET=<openssl rand -base64 33>
+   AUTH_MICROSOFT_ENTRA_ID_ID=<client ID>
+   AUTH_MICROSOFT_ENTRA_ID_SECRET=<secret VALUE, not the GUID Secret ID>
+   AUTH_MICROSOFT_ENTRA_ID_TENANT_ID=<tenant ID>
+   ```
+
+Set a calendar reminder to rotate the client secret before its 12-month expiry — auth dies the moment it expires.
+
+### Local dev without Entra
+
+Set `DEV_BYPASS_AUTH=1` in `.env.local` plus optional `DEV_BYPASS_EMAIL` and `DEV_BYPASS_NAME`. The proxy skips the redirect-to-signin and injects the dev identity on every request. Refused in production by the proxy at runtime.
 
 ## Health checks
 

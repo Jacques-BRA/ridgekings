@@ -1,18 +1,26 @@
-import { headers } from "next/headers";
 import { db, sqlite } from "@/db";
 import { users, type User } from "@/db/schema";
 import { eq } from "drizzle-orm";
+import { auth as nextAuth } from "@/auth";
 import { env } from "./env";
 
-const HEADER_EMAIL = "x-rk-user-email";
-const HEADER_NAME = "x-rk-user-name";
+function isDevBypass(): boolean {
+  return env.NODE_ENV !== "production" && env.DEV_BYPASS_AUTH === "1";
+}
 
 export async function getCurrentUser(): Promise<User | null> {
-  const h = await headers();
-  const email = h.get(HEADER_EMAIL)?.trim().toLowerCase() ?? null;
-  const rawName = (h.get(HEADER_NAME) ?? "").trim();
-  const name = rawName || (email?.split("@")[0] ?? "user");
-  if (!email) return null;
+  if (isDevBypass()) {
+    const email = (env.DEV_BYPASS_EMAIL ?? "dev@local.test").toLowerCase();
+    const name = env.DEV_BYPASS_NAME ?? "Local Dev";
+    return getOrCreateUser(email, name);
+  }
+
+  const session = await nextAuth();
+  const rawEmail = session?.user?.email ?? null;
+  if (!rawEmail) return null;
+  const email = rawEmail.toLowerCase();
+  const rawName = session?.user?.name?.trim() ?? "";
+  const name = rawName || email.split("@")[0] || "user";
   return getOrCreateUser(email, name);
 }
 
@@ -20,7 +28,7 @@ function getOrCreateUser(email: string, name: string): User {
   const byEmail = db.select().from(users).where(eq(users.email, email)).get();
   if (byEmail) return byEmail;
 
-  // Legacy fallback: existing users created before the CF Access swap have no email yet.
+  // Legacy fallback: existing users created before the SSO swap have no email yet.
   // Match by name so they keep their balance, then write the email forward.
   const byName = db.select().from(users).where(eq(users.name, name)).get();
   if (byName) {
@@ -38,9 +46,4 @@ function getOrCreateUser(email: string, name: string): User {
 export function isAdmin(user: User | null): boolean {
   if (!user) return false;
   return user.name.toLowerCase() === env.ADMIN_USERNAME.toLowerCase();
-}
-
-export function cfAccessLogoutUrl(): string | null {
-  if (!env.CF_ACCESS_TEAM_DOMAIN) return null;
-  return `https://${env.CF_ACCESS_TEAM_DOMAIN}/cdn-cgi/access/logout`;
 }
