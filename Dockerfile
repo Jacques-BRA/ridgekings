@@ -40,8 +40,7 @@ RUN pnpm build
 FROM node:${NODE_VERSION}-bookworm-slim AS runner
 RUN apt-get update \
   && apt-get install -y --no-install-recommends ca-certificates wget \
-  && rm -rf /var/lib/apt/lists/* \
-  && useradd -r -u 1001 -m -d /home/app -s /usr/sbin/nologin app
+  && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 ENV NODE_ENV=production \
@@ -49,18 +48,23 @@ ENV NODE_ENV=production \
     HOSTNAME=0.0.0.0
 
 # Bring over only what we need at runtime.
-COPY --chown=app:app --from=builder /app/.next ./.next
-COPY --chown=app:app --from=builder /app/node_modules ./node_modules
-COPY --chown=app:app --from=builder /app/public ./public
-COPY --chown=app:app --from=builder /app/db ./db
-COPY --chown=app:app --from=builder /app/drizzle.config.ts ./drizzle.config.ts
-COPY --chown=app:app --from=builder /app/package.json ./package.json
-COPY --chown=app:app --from=builder /app/scripts ./scripts
+COPY --from=builder /app/.next ./.next
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/public ./public
+COPY --from=builder /app/db ./db
+COPY --from=builder /app/drizzle.config.ts ./drizzle.config.ts
+COPY --from=builder /app/package.json ./package.json
+COPY --from=builder /app/scripts ./scripts
 
 # Volume-mounted dirs (Railway mounts an attached volume here at runtime).
-RUN mkdir -p /data && chown -R app:app /data
+RUN mkdir -p /data
 
-USER app
+# This container runs as root deliberately. The runtime mounts a persistent
+# volume at /data owned by root, and the migrate script + better-sqlite3
+# need write access there. Dropping to a non-root user would require an
+# entrypoint script that chowns the mount and re-execs (gosu/su-exec) —
+# overkill for a single-tenant, auth-gated internal app behind Railway's
+# container isolation.
 EXPOSE 3000
 
 # Healthcheck — Railway also probes /api/health via railway.json,
