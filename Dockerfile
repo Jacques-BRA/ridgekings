@@ -33,7 +33,12 @@ COPY . .
 # running container something is very wrong.
 ENV COOKIE_SECRET=build-only-placeholder-cookie-secret-do-not-use
 ENV AUTH_SECRET=build-only-placeholder-auth-secret-do-not-use
-ENV DATABASE_URL=file:./.build-placeholder.db
+# `:memory:` instead of a file path: next build's "Collecting page data"
+# spawns ~14 parallel workers, each importing db/index.ts. With a file
+# path they all race to create the file + set journal_mode=WAL and trip
+# over each other (SQLITE_BUSY). :memory: gives every worker its own
+# private isolated in-memory DB — no file, no lock, no contention.
+ENV DATABASE_URL=:memory:
 RUN pnpm build
 
 # ---------- runner ----------
