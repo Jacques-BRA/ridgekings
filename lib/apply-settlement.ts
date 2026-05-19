@@ -2,6 +2,12 @@ import { db, sqlite } from "@/db";
 import { bets, wagers, users, transactions, submissions, gifVotes, type Bet } from "@/db/schema";
 import { eq, sql } from "drizzle-orm";
 import { computeParimutuelPayouts, computeGifChallengePayout } from "./pool";
+import { notifyBetEnded } from "./teams";
+import { logger } from "./logger";
+
+function fireAndForget(p: Promise<unknown>, label: string): void {
+  p.catch((err) => logger.error({ event: "fire_and_forget_failed", label, err: err instanceof Error ? err.message : String(err) }));
+}
 
 export type ApplySettlementOutcome =
   | { betType: "structured"; winningOutcomeId: number | null }
@@ -79,6 +85,7 @@ export function applySettlement(betId: number, outcome: ApplySettlementOutcome):
       .run();
   });
   tx();
+  fireAndForget(notifyBetEnded(betId), `applySettlement bet ${betId}`);
 }
 
 function voidStructured(bet: Bet, ws: { id: number; userId: number; stake: number }[]): void {

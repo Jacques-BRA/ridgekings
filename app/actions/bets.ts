@@ -6,8 +6,13 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/db";
 import { bets, outcomes } from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth";
-import { logAction } from "@/lib/logger";
+import { logAction, logger } from "@/lib/logger";
 import { checkRateLimit } from "@/lib/rate-limit";
+import { notifyBetCreated } from "@/lib/teams";
+
+function fireAndForget(p: Promise<unknown>, label: string): void {
+  p.catch((err) => logger.error({ event: "fire_and_forget_failed", label, err: err instanceof Error ? err.message : String(err) }));
+}
 
 const BaseSchema = z.object({
   title: z.string().trim().min(3).max(140),
@@ -138,6 +143,18 @@ export async function createBet(formData: FormData): Promise<void> {
       ])
       .run();
   }
+
+  fireAndForget(
+    notifyBetCreated({
+      betId: inserted.id,
+      title: parsed.title,
+      creatorName: me.name,
+      deadlineIso,
+      betType: parsed.betType,
+      entryFee: parsed.betType === "gif_challenge" ? parsed.entryFee : null,
+    }),
+    `createBet bet ${inserted.id}`,
+  );
 
   return inserted.id;
   });

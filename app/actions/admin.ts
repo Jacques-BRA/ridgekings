@@ -8,8 +8,13 @@ import { eq, sql } from "drizzle-orm";
 import { getCurrentUser, isAdmin } from "@/lib/auth";
 import { applySettlement } from "@/lib/apply-settlement";
 import { CREATOR_FEE_BPS } from "@/lib/pool";
-import { logAction } from "@/lib/logger";
+import { logAction, logger } from "@/lib/logger";
 import { checkRateLimit } from "@/lib/rate-limit";
+import { notifyBetEnded } from "@/lib/teams";
+
+function fireAndForget(p: Promise<unknown>, label: string): void {
+  p.catch((err) => logger.error({ event: "fire_and_forget_failed", label, err: err instanceof Error ? err.message : String(err) }));
+}
 
 async function assertAdmin(): Promise<void> {
   const u = await getCurrentUser();
@@ -80,6 +85,7 @@ export async function adminVoidBet(formData: FormData): Promise<void> {
     }).where(eq(bets.id, betId)).run();
   });
   tx();
+  fireAndForget(notifyBetEnded(betId), `adminVoidBet bet ${betId}`);
 
   revalidatePath(`/bets/${betId}`);
   revalidatePath("/");
@@ -136,6 +142,7 @@ export async function adminForceSettle(formData: FormData): Promise<void> {
         db.update(bets).set({ status: "settled", settledAt: new Date().toISOString(), winningSubmissionId: winner.id }).where(eq(bets.id, bet.id)).run();
       });
       tx();
+      fireAndForget(notifyBetEnded(bet.id), `adminForceSettle gif bet ${bet.id}`);
     }
   } else if (bet.betType === "prop") {
     applySettlement(bet.id, { betType: "prop", winningPropAnswer: parsed.propAnswer ?? null });

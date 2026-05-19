@@ -1,13 +1,10 @@
 import Link from "next/link";
 import { getCurrentUser, isAdmin } from "@/lib/auth";
-import { UserPicker } from "./UserPicker";
+import { UserBadge } from "./UserBadge";
 import { BalanceCounter } from "./BalanceCounter";
-import { db } from "@/db";
-import { users } from "@/db/schema";
 
 export async function TopBar() {
   const me = await getCurrentUser();
-  const allUsers = db.select({ id: users.id, name: users.name }).from(users).all();
   return (
     <header className="sticky top-0 z-30 border-b border-border bg-bg-base/95 backdrop-blur">
       <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3">
@@ -23,16 +20,14 @@ export async function TopBar() {
           <Link href="/me" className="hover:text-primary">My Ledger</Link>
         </nav>
         <div className="flex items-center gap-3">
-          {me ? (
+          {me && (
             <>
               <div className="text-right">
                 <div className="text-text-dim text-xs uppercase tracking-wide">Balance</div>
                 <BalanceCounter initial={me.balance} />
               </div>
-              <UserPicker currentName={me.name} users={allUsers} isAdmin={isAdmin(me)} />
+              <UserBadge name={me.name} isAdmin={isAdmin(me)} />
             </>
-          ) : (
-            <UserPicker currentName={null} users={allUsers} isAdmin={false} />
           )}
         </div>
       </div>
