@@ -25,6 +25,15 @@ RUN npm install -g pnpm@9.15.9 \
 FROM deps AS builder
 WORKDIR /app
 COPY . .
+# `next build`'s "Collecting page data" phase evaluates every server module,
+# which means lib/env.ts runs and rejects missing required vars. These
+# sentinel values satisfy the schema purely for the duration of the build.
+# Railway provides the real values at container start, overriding these.
+# Anything obviously-fake-looking is on purpose; if these ever leak into a
+# running container something is very wrong.
+ENV COOKIE_SECRET=build-only-placeholder-cookie-secret-do-not-use
+ENV AUTH_SECRET=build-only-placeholder-auth-secret-do-not-use
+ENV DATABASE_URL=file:./.build-placeholder.db
 RUN pnpm build
 
 # ---------- runner ----------
