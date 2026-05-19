@@ -13,7 +13,12 @@ RUN apt-get update \
   && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY package.json pnpm-lock.yaml ./
-RUN corepack enable pnpm \
+# Upgrade corepack first — Node images ship with an older corepack whose
+# bundled pnpm signing keys are stale, which causes `corepack enable pnpm`
+# to fail with "Cannot find matching keyid". Pinning to a newer corepack
+# refreshes the trusted keys.
+RUN npm install -g corepack@latest \
+  && corepack enable pnpm \
   && pnpm install --frozen-lockfile --prod=false
 
 # ---------- builder ----------
